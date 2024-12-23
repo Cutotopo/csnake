@@ -109,23 +109,27 @@ void findValueCoordinatesInMatrix(int matrix[FIELD_HEIGHT][FIELD_WIDTH], int val
 
 // handle keypressed event
 gboolean key_pressed(GtkEventControllerKey* self, guint keyval, guint keycode, GdkModifierType state, gpointer user_data) {
-    switch (keycode) {
-        case 111:
+    switch (keyval) {
+        case GDK_KEY_w:
+        case GDK_KEY_Up:
             if (game.snake.direction != 2) {
                 game.snake.direction = 0;
             }
             break;
-        case 116:
+        case GDK_KEY_s:
+        case GDK_KEY_Down:
             if (game.snake.direction != 0) {
                 game.snake.direction = 2;
             }
             break;
-        case 113:
+        case GDK_KEY_a:
+        case GDK_KEY_Left:
             if (game.snake.direction != 1) {
                 game.snake.direction = 3;
             }
             break;
-        case 114:
+        case GDK_KEY_d:
+        case GDK_KEY_Right:
             if (game.snake.direction != 3) {
                 game.snake.direction = 1;
             }
@@ -165,7 +169,7 @@ gboolean refreshField() {
         game.snake.direction = 1;
         game.snake.isGrowing = 0;
     }
-    
+
     if (game.isSnakePlaced) {
         int snakeHeadCoordinates[2];
         findValueCoordinatesInMatrix(game.snake.position, game.snake.maxValue, snakeHeadCoordinates);
