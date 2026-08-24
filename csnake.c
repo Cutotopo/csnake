@@ -357,10 +357,10 @@ static void activate(GtkApplication* app, gpointer user_data) {
     gtk_box_append(GTK_BOX(gameStateBox), gameStateLabel);
 
     // show the window
-gtk_window_present(GTK_WINDOW(window));
+    gtk_window_present(GTK_WINDOW(window));
 
     // use timeout to reload field
-g_timeout_add(game.gameFieldRefreshTimeout, refreshField, NULL);
+    g_timeout_add(game.gameFieldRefreshTimeout, refreshField, NULL);
 }
 
 int main(int argc, char **argv) {
