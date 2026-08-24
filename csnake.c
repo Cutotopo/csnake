@@ -148,7 +148,7 @@ void emptyField() {
 }
 
 // refreshes the game field
-gboolean refreshField() {
+gboolean refreshField(gpointer user_data) {
     // if the apple was not placed, it is now placed
     if (!game.isApplePlaced) {
         int appleX;
@@ -303,7 +303,7 @@ static void activate(GtkApplication* app, gpointer user_data) {
 
     GdkDisplay *display = gdk_display_get_default();
     GtkCssProvider *provider = gtk_css_provider_new();
-    gtk_css_provider_load_from_data(provider, ".gameOverExitButton { margin-top: 10px; } .gameOverTitle { font-size: 48px; } .gameFieldSquare { border-radius: 0px; } .gameFieldSquare-even { background-color: green; } .gameFieldSquare-odd { background-color: forestgreen; } .apple { background-color: red; } .snake { background-color: blue; } .snakeHead { border: 3px solid yellow; }", -1);
+    gtk_css_provider_load_from_string(provider, ".gameOverExitButton { margin-top: 10px; } .gameOverTitle { font-size: 48px; } .gameFieldSquare { border-radius: 0px; } .gameFieldSquare-even { background-color: green; } .gameFieldSquare-odd { background-color: forestgreen; } .apple { background-color: red; } .snake { background-color: blue; } .snakeHead { border: 3px solid yellow; }");
     gtk_style_context_add_provider_for_display(display, GTK_STYLE_PROVIDER(provider), GTK_STYLE_PROVIDER_PRIORITY_FALLBACK);
     g_object_unref(provider);
 
@@ -357,7 +357,7 @@ static void activate(GtkApplication* app, gpointer user_data) {
     gtk_box_append(GTK_BOX(gameStateBox), gameStateLabel);
 
     // show the window
-    gtk_widget_show(window);
+    gtk_window_present(GTK_WINDOW(window));
 
     // use timeout to reload field
     g_timeout_add(game.gameFieldRefreshTimeout, refreshField, NULL);
