@@ -1,5 +1,5 @@
 # csnake
-Simple Snake game written in C using GTK
+Simple Snake game written in C using GTK and gstreamer
 
 ## Flags
 csnake supports the following flags:
