@@ -9,7 +9,7 @@ csnake supports the following flags:
 | --help           | -h         | Show help message                                       |                  |
 
 ## Development
-If GTK libraries are installed on your system, you may be able to build this software using:
+If GTK & gstreamer libraries are installed on your system, you may be able to build this software using:
 ```
-gcc $(pkg-config --cflags gtk4) csnake.c -o csnake -lm $(pkg-config --libs gtk4)
+gcc $(pkg-config --cflags gtk4 gstreamer-1.0) csnake.c -o csnake -lm $(pkg-config --libs gtk4 gstreamer-1.0)
 ```

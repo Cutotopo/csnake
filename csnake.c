@@ -6,6 +6,7 @@
 #include <time.h>
 #include <string.h>
 #include <gtk/gtk.h>
+#include <gst/gst.h>
 #define FIELD_HEIGHT 25
 #define FIELD_WIDTH 25
 
@@ -27,6 +28,10 @@ typedef struct Snake {
     int isGameOver;
 } snake;
 
+// bgm gstreamer pipeline and signal
+static GstElement *bgm_pipeline = NULL;
+static gboolean bgm_started = FALSE;
+
 // game field widgets
 GtkWidget *gameFieldSquare[FIELD_HEIGHT][FIELD_WIDTH];
 // top label widget
@@ -35,6 +40,11 @@ GtkWidget *gameStateLabel;
 GtkWidget *window;
 // game
 snake game;
+
+// stop bgm function
+void stop_background_music();
+// forward declaration for bus callback
+static gboolean bgm_bus_callback(GstBus *bus, GstMessage *msg, gpointer data);
 
 // quit the application
 void quitApplication() {
@@ -63,6 +73,85 @@ void finishGame() {
     gtk_widget_add_css_class(gameOverExitButton, "gameOverExitButton");
     g_signal_connect(gameOverExitButton, "clicked", G_CALLBACK (quitApplication), NULL);
     gtk_box_append(GTK_BOX(gameOverBox), gameOverExitButton);
+
+    // stop the bgm
+    stop_background_music();
+}
+
+// playing bgm through pipeline
+void play_background_music() {
+    if (bgm_started) return;
+
+    // make a playbin
+    bgm_pipeline = gst_element_factory_make("playbin", "bgm-player");
+    if (!bgm_pipeline) {
+        g_printerr("Failed to create playbin element.\n");
+        return;
+    }
+
+    // set the bgm file uri
+    gchar *uri = gst_filename_to_uri("skaterswaltz_8bit.mp3", NULL);
+    if (!uri) {
+        g_printerr("Failed to convert filename to URI.\n");
+        gst_object_unref(bgm_pipeline);
+        bgm_pipeline = NULL;
+        return;
+    }
+    g_object_set(bgm_pipeline, "uri", uri, NULL);
+    g_free(uri);
+
+    // Add bus monitoring to handle errors and end events
+    GstBus *bus = gst_element_get_bus(bgm_pipeline);
+    gst_bus_add_watch(bus, (GstBusFunc)bgm_bus_callback, NULL);
+    gst_object_unref(bus);
+
+    // play
+    GstStateChangeReturn ret = gst_element_set_state(bgm_pipeline, GST_STATE_PLAYING);
+    if (ret == GST_STATE_CHANGE_FAILURE) {
+        g_printerr("Failed to start playback.\n");
+        gst_object_unref(bgm_pipeline);
+        bgm_pipeline = NULL;
+        return;
+    }
+    bgm_started = TRUE;
+}
+
+// get bus message
+static gboolean bgm_bus_callback(GstBus *bus, GstMessage *msg, gpointer data) {
+    switch (GST_MESSAGE_TYPE(msg)) {
+        case GST_MESSAGE_ERROR: {
+            GError *err = NULL;
+            gchar *debug = NULL;
+            gst_message_parse_error(msg, &err, &debug);
+            g_printerr("BGM error: %s\n", err->message);
+            g_error_free(err);
+            g_free(debug);
+            break;
+        }
+        case GST_MESSAGE_EOS:
+            // once bgm end, seek to start to achieve repeat
+            if (bgm_pipeline) {
+                // FLUSH seek, jump to beginning of bgm
+                gst_element_seek_simple(bgm_pipeline, GST_FORMAT_TIME,GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_KEY_UNIT, 0);
+
+                // avoid the PAUSE status
+                // gst_element_set_state(bgm_pipeline, GST_STATE_PLAYING);
+            }
+            break;
+        default:
+            break;
+    }
+    return TRUE;
+}
+
+// stop bgm when end to clean the gst
+void stop_background_music() {
+    if (bgm_pipeline) {
+        gst_element_set_state(bgm_pipeline, GST_STATE_NULL);
+        gst_object_unref(bgm_pipeline);
+        bgm_pipeline = NULL;
+        bgm_started = FALSE;
+    }
 }
 
 // set direction label
@@ -168,6 +257,11 @@ gboolean refreshField(gpointer user_data) {
         game.isSnakePlaced = 1;
         game.snake.direction = 1;
         game.snake.isGrowing = 0;
+    }
+
+    // trigger the play function
+    if (!bgm_started) {
+        play_background_music();
     }
 
     if (game.isSnakePlaced) {
@@ -385,6 +479,7 @@ int main(int argc, char **argv) {
 
     // app
     GtkApplication *app;
+    gst_init(&argc, &argv);
     int status;
 
     // app initialization and activation
