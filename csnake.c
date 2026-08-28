@@ -10,9 +10,16 @@
 #define FIELD_HEIGHT 25
 #define FIELD_WIDTH 25
 
+enum SnakeDirection {
+    SNAKE_DIRECTION_UP,
+    SNAKE_DIRECTION_RIGHT,
+    SNAKE_DIRECTION_DOWN,
+    SNAKE_DIRECTION_LEFT
+};
+
 typedef struct Player {
     int position[FIELD_HEIGHT][FIELD_WIDTH];
-    int direction; // valid values are 0: up, 1: right, 2: down, 3: left
+    enum SnakeDirection direction; // valid values are 0: up, 1: right, 2: down, 3: left
     int maxValue;
     int isGrowing;
 } player;
@@ -155,18 +162,18 @@ void stop_background_music() {
 }
 
 // set direction label
-char* generateDirectionLabel(int direction) {
+char* generateDirectionLabel(enum SnakeDirection direction) {
     switch(direction) {
-        case 0:
+        case SNAKE_DIRECTION_UP:
             return "North";
             break;
-        case 1:
+        case SNAKE_DIRECTION_RIGHT:
             return "East";
             break;
-        case 2:
+        case SNAKE_DIRECTION_DOWN:
             return "South";
             break;
-        case 3:
+        case SNAKE_DIRECTION_LEFT:
             return "West";
             break;
     }
@@ -201,26 +208,26 @@ gboolean key_pressed(GtkEventControllerKey* self, guint keyval, guint keycode, G
     switch (keyval) {
         case GDK_KEY_w:
         case GDK_KEY_Up:
-            if (game.snake.direction != 2) {
-                game.snake.direction = 0;
+            if (game.snake.direction != SNAKE_DIRECTION_DOWN) {
+                game.snake.direction = SNAKE_DIRECTION_UP;
             }
             break;
         case GDK_KEY_s:
         case GDK_KEY_Down:
-            if (game.snake.direction != 0) {
-                game.snake.direction = 2;
+            if (game.snake.direction != SNAKE_DIRECTION_UP) {
+                game.snake.direction = SNAKE_DIRECTION_DOWN;
             }
             break;
         case GDK_KEY_a:
         case GDK_KEY_Left:
-            if (game.snake.direction != 1) {
-                game.snake.direction = 3;
+            if (game.snake.direction != SNAKE_DIRECTION_RIGHT) {
+                game.snake.direction = SNAKE_DIRECTION_LEFT;
             }
             break;
         case GDK_KEY_d:
         case GDK_KEY_Right:
-            if (game.snake.direction != 3) {
-                game.snake.direction = 1;
+            if (game.snake.direction != SNAKE_DIRECTION_LEFT) {
+                game.snake.direction = SNAKE_DIRECTION_RIGHT;
             }
             break;
     }
@@ -255,7 +262,7 @@ gboolean refreshField(gpointer user_data) {
         game.snake.position[FIELD_HEIGHT / 2][FIELD_WIDTH / 2] = 1;
         game.snake.maxValue = 1;
         game.isSnakePlaced = 1;
-        game.snake.direction = 1;
+        game.snake.direction = SNAKE_DIRECTION_RIGHT;
         game.snake.isGrowing = 0;
     }
 
@@ -268,7 +275,7 @@ gboolean refreshField(gpointer user_data) {
         int snakeHeadCoordinates[2];
         findValueCoordinatesInMatrix(game.snake.position, game.snake.maxValue, snakeHeadCoordinates);
         // check field boundaries
-        if (snakeHeadCoordinates[0] > 0 && game.snake.direction == 0) {
+        if (snakeHeadCoordinates[0] > 0 && game.snake.direction == SNAKE_DIRECTION_UP) {
             if (game.field[snakeHeadCoordinates[0] - 1][snakeHeadCoordinates[1]] == 1) {
                 game.snake.isGrowing = 1;
             }
@@ -276,7 +283,7 @@ gboolean refreshField(gpointer user_data) {
                 game.isGameOver = 1;
             }
         }
-        if (snakeHeadCoordinates[1] > 0 && game.snake.direction == 1) {
+        if (snakeHeadCoordinates[1] > 0 && game.snake.direction == SNAKE_DIRECTION_RIGHT) {
             if (game.field[snakeHeadCoordinates[0]][snakeHeadCoordinates[1] + 1] == 1) {
                 game.snake.isGrowing = 1;
             }
@@ -284,7 +291,7 @@ gboolean refreshField(gpointer user_data) {
                 game.isGameOver = 1;
             }
         }
-        if (snakeHeadCoordinates[0] < FIELD_HEIGHT - 1 && game.snake.direction == 2) {
+        if (snakeHeadCoordinates[0] < FIELD_HEIGHT - 1 && game.snake.direction == SNAKE_DIRECTION_DOWN) {
             if (game.field[snakeHeadCoordinates[0] + 1][snakeHeadCoordinates[1]] == 1) {
                 game.snake.isGrowing = 1;
             }
@@ -292,7 +299,7 @@ gboolean refreshField(gpointer user_data) {
                 game.isGameOver = 1;
             }
         }
-        if (snakeHeadCoordinates[1] < FIELD_WIDTH - 1 && game.snake.direction == 3) {
+        if (snakeHeadCoordinates[1] < FIELD_WIDTH - 1 && game.snake.direction == SNAKE_DIRECTION_LEFT) {
             if (game.field[snakeHeadCoordinates[0]][snakeHeadCoordinates[1] - 1] == 1) {
                 game.snake.isGrowing = 1;
             }
@@ -302,7 +309,7 @@ gboolean refreshField(gpointer user_data) {
         }
         if (!game.snake.isGrowing) {
             switch(game.snake.direction) {
-                case 0:
+                case SNAKE_DIRECTION_UP:
                     if (snakeHeadCoordinates[0] > 0) {
                         game.snake.position[snakeHeadCoordinates[0] - 1][snakeHeadCoordinates[1]] = game.snake.position[snakeHeadCoordinates[0]][snakeHeadCoordinates[1]];
                         snakeHeadCoordinates[0]--;
@@ -310,7 +317,7 @@ gboolean refreshField(gpointer user_data) {
                         game.isGameOver = 1;
                     }
                     break;
-                case 1:
+                case SNAKE_DIRECTION_RIGHT:
                     if (snakeHeadCoordinates[1] < FIELD_WIDTH - 1) {
                         game.snake.position[snakeHeadCoordinates[0]][snakeHeadCoordinates[1] + 1] = game.snake.position[snakeHeadCoordinates[0]][snakeHeadCoordinates[1]];
                         snakeHeadCoordinates[1]++;
@@ -318,7 +325,7 @@ gboolean refreshField(gpointer user_data) {
                         game.isGameOver = 1;
                     }
                     break;
-                case 2:
+                case SNAKE_DIRECTION_DOWN:
                     if (snakeHeadCoordinates[0] < FIELD_HEIGHT - 1) {
                         game.snake.position[snakeHeadCoordinates[0] + 1][snakeHeadCoordinates[1]] = game.snake.position[snakeHeadCoordinates[0]][snakeHeadCoordinates[1]];
                         snakeHeadCoordinates[0]++;
@@ -326,7 +333,7 @@ gboolean refreshField(gpointer user_data) {
                         game.isGameOver = 1;
                     }
                     break;
-                case 3:
+                case SNAKE_DIRECTION_LEFT:
                     if (snakeHeadCoordinates[1] > 0) {
                         game.snake.position[snakeHeadCoordinates[0]][snakeHeadCoordinates[1] - 1] = game.snake.position[snakeHeadCoordinates[0]][snakeHeadCoordinates[1]];
                         snakeHeadCoordinates[1]--;
