@@ -479,12 +479,22 @@ int main(int argc, char **argv) {
                 printf("csnake - https://github.com/Cutotopo/csnake\n===========================================\nOptions:\n  --refreshTimeout / -rt | Set game tick interval in milliseconds (default is 200)\n  --help / -h            | Show this help message\n");
                 exit(0);
             }
+
             if ((strcmp(argv[i], "--refreshTimeout") == 0) || (strcmp(argv[i], "-rt") == 0)) {
                 if (atoi(argv[i + 1]) == 0) {
                     printf("Refresh timeout value should be a positive integer.\n");
                     exit(1);
                 }
                 game.gameFieldRefreshTimeout = atoi(argv[i + 1]);
+            }
+
+            if ((strcmp(argv[i], "--size") == 0) || (strcmp(argv[i], "-s") == 0)) {
+                if (atoi(argv[i + 1]) == 0 || atoi(argv[i + 2]) == 0) {
+                    printf("Both size values should be positive integers.\n");
+                    exit(1);
+                }
+                game.field_height = atoi(argv[i + 1]);
+                game.field_width = atoi(argv[i + 2]);
             }
         }
     }
