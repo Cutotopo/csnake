@@ -7,8 +7,6 @@
 #include <string.h>
 #include <gtk/gtk.h>
 #include <gst/gst.h>
-#define FIELD_HEIGHT 25
-#define FIELD_WIDTH 25
 
 enum SnakeDirection {
     SNAKE_DIRECTION_UP,
@@ -18,7 +16,7 @@ enum SnakeDirection {
 };
 
 typedef struct Player {
-    int position[FIELD_HEIGHT][FIELD_WIDTH];
+    int **position;
     enum SnakeDirection direction; // valid values are 0: up, 1: right, 2: down, 3: left
     int maxValue;
     int isGrowing;
@@ -26,7 +24,9 @@ typedef struct Player {
 
 typedef struct Snake {
     int score;
-    int field[FIELD_HEIGHT][FIELD_WIDTH];
+    int **field;
+    int field_width;
+    int field_height;
     player snake;
     int isSnakePlaced;
     int isApplePlaced;
@@ -40,7 +40,7 @@ static GstElement *bgm_pipeline = NULL;
 static gboolean bgm_started = FALSE;
 
 // game field widgets
-GtkWidget *gameFieldSquare[FIELD_HEIGHT][FIELD_WIDTH];
+GtkWidget ***gameFieldSquare;
 // top label widget
 GtkWidget *gameStateLabel;
 // window
@@ -192,9 +192,9 @@ void updateLabels() {
 }
 
 // find value in matrix
-void findValueCoordinatesInMatrix(int matrix[FIELD_HEIGHT][FIELD_WIDTH], int value, int* coordinates) {
-    for (int i = 0; i < FIELD_HEIGHT; i++) {
-        for (int j = 0; j < FIELD_WIDTH; j++) {
+void findValueCoordinatesInMatrix(int **matrix, int value, int* coordinates) {
+    for (int i = 0; i < game.field_height; i++) {
+        for (int j = 0; j < game.field_width; j++) {
             if (matrix[i][j] == value) {
                 coordinates[0] = i;
                 coordinates[1] = j;
@@ -236,9 +236,10 @@ gboolean key_pressed(GtkEventControllerKey* self, guint keyval, guint keycode, G
 
 // empty game field
 void emptyField() {
-    for (int i = 0; i < FIELD_HEIGHT; i++) {
-        for (int j = 0; j < FIELD_WIDTH; j++) {
+    for (int i = 0; i < game.field_height; i++) {
+        for (int j = 0; j < game.field_width; j++) {
             game.field[i][j] = 0;
+            game.snake.position[i][j] = 0;
         }
     }
 }
@@ -250,8 +251,8 @@ gboolean refreshField(gpointer user_data) {
         int appleX;
         int appleY;
         do {
-            appleX = rand()%FIELD_WIDTH;
-            appleY = rand()%FIELD_HEIGHT;
+            appleX = rand() % game.field_width;
+            appleY = rand() % game.field_height;
         } while (game.snake.position[appleY][appleX] > 0);
         game.field[appleY][appleX] = 1;
         game.isApplePlaced = 1;
@@ -259,7 +260,7 @@ gboolean refreshField(gpointer user_data) {
 
     // if the player was not placed, it its now placed
     if (!game.isSnakePlaced) {
-        game.snake.position[FIELD_HEIGHT / 2][FIELD_WIDTH / 2] = 1;
+        game.snake.position[game.field_height / 2][game.field_width / 2] = 1;
         game.snake.maxValue = 1;
         game.isSnakePlaced = 1;
         game.snake.direction = SNAKE_DIRECTION_RIGHT;
@@ -291,7 +292,7 @@ gboolean refreshField(gpointer user_data) {
                 game.isGameOver = 1;
             }
         }
-        if (snakeHeadCoordinates[0] < FIELD_HEIGHT - 1 && game.snake.direction == SNAKE_DIRECTION_DOWN) {
+        if (snakeHeadCoordinates[0] < game.field_height - 1 && game.snake.direction == SNAKE_DIRECTION_DOWN) {
             if (game.field[snakeHeadCoordinates[0] + 1][snakeHeadCoordinates[1]] == 1) {
                 game.snake.isGrowing = 1;
             }
@@ -299,7 +300,7 @@ gboolean refreshField(gpointer user_data) {
                 game.isGameOver = 1;
             }
         }
-        if (snakeHeadCoordinates[1] < FIELD_WIDTH - 1 && game.snake.direction == SNAKE_DIRECTION_LEFT) {
+        if (snakeHeadCoordinates[1] < game.field_width - 1 && game.snake.direction == SNAKE_DIRECTION_LEFT) {
             if (game.field[snakeHeadCoordinates[0]][snakeHeadCoordinates[1] - 1] == 1) {
                 game.snake.isGrowing = 1;
             }
@@ -318,7 +319,7 @@ gboolean refreshField(gpointer user_data) {
                     }
                     break;
                 case SNAKE_DIRECTION_RIGHT:
-                    if (snakeHeadCoordinates[1] < FIELD_WIDTH - 1) {
+                    if (snakeHeadCoordinates[1] < game.field_width - 1) {
                         game.snake.position[snakeHeadCoordinates[0]][snakeHeadCoordinates[1] + 1] = game.snake.position[snakeHeadCoordinates[0]][snakeHeadCoordinates[1]];
                         snakeHeadCoordinates[1]++;
                     } else {
@@ -326,7 +327,7 @@ gboolean refreshField(gpointer user_data) {
                     }
                     break;
                 case SNAKE_DIRECTION_DOWN:
-                    if (snakeHeadCoordinates[0] < FIELD_HEIGHT - 1) {
+                    if (snakeHeadCoordinates[0] < game.field_height - 1) {
                         game.snake.position[snakeHeadCoordinates[0] + 1][snakeHeadCoordinates[1]] = game.snake.position[snakeHeadCoordinates[0]][snakeHeadCoordinates[1]];
                         snakeHeadCoordinates[0]++;
                     } else {
@@ -343,8 +344,8 @@ gboolean refreshField(gpointer user_data) {
                     break;
                 }
         }
-        for (int i = 0; i < FIELD_HEIGHT; i++) {
-            for (int j = 0; j < FIELD_WIDTH; j++) {
+        for (int i = 0; i < game.field_height; i++) {
+            for (int j = 0; j < game.field_width; j++) {
                 if (((i != snakeHeadCoordinates[0] || j != snakeHeadCoordinates[1])) && (game.snake.position[i][j] > 0) && (!game.snake.isGrowing)) {
                     game.snake.position[i][j]--;
                 }
@@ -364,8 +365,8 @@ gboolean refreshField(gpointer user_data) {
 
     checkLevelScore();
     updateLabels();
-    for (int i = 0; i < FIELD_HEIGHT; i++) {
-        for (int j = 0; j < FIELD_WIDTH; j++) {
+    for (int i = 0; i < game.field_height; i++) {
+        for (int j = 0; j < game.field_width; j++) {
             switch(game.field[i][j]) {
                 case 0:
                     gtk_widget_remove_css_class(gameFieldSquare[i][j], "apple");
@@ -438,13 +439,13 @@ static void activate(GtkApplication* app, gpointer user_data) {
     gtk_box_append(GTK_BOX(mainBox), gameFieldBox);
 
     // game field objects
-    GtkWidget *gameFieldChildrenBoxes[FIELD_HEIGHT];
-    for (int i = 0; i < FIELD_HEIGHT; i++) {
+    GtkWidget **gameFieldChildrenBoxes = malloc(sizeof(GtkWidget*) * game.field_height);
+    for (int i = 0; i < game.field_height; i++) {
         gameFieldChildrenBoxes[i] = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
         gtk_widget_set_halign(gameFieldChildrenBoxes[i], GTK_ALIGN_CENTER);
         gtk_widget_set_valign(gameFieldChildrenBoxes[i], GTK_ALIGN_CENTER);
         gtk_box_append(GTK_BOX(gameFieldBox), gameFieldChildrenBoxes[i]);
-        for (int j = 0; j < FIELD_WIDTH; j++) {
+        for (int j = 0; j < game.field_width; j++) {
             gameFieldSquare[i][j] = gtk_label_new("");
             gtk_widget_set_size_request(gameFieldSquare[i][j], 25, 25);
             gtk_widget_add_css_class(gameFieldSquare[i][j], "gameFieldSquare");
@@ -462,11 +463,15 @@ static void activate(GtkApplication* app, gpointer user_data) {
 
     // use timeout to reload field
     g_timeout_add(game.gameFieldRefreshTimeout, refreshField, NULL);
+
+    free(gameFieldChildrenBoxes);
 }
 
 int main(int argc, char **argv) {
     srand(time(NULL));
     game.gameFieldRefreshTimeout = 200;
+    game.field_width = 25;
+    game.field_height = 25;
 
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] == '-') {
@@ -484,6 +489,15 @@ int main(int argc, char **argv) {
         }
     }
 
+    game.field = malloc(sizeof(int*) * game.field_height);
+    game.snake.position = malloc(sizeof(int*) * game.field_height);
+    gameFieldSquare = malloc(sizeof(GtkWidget**) * game.field_height);
+    for (int i = 0; i < game.field_height; i++) {
+        game.field[i] = malloc(sizeof(int) * game.field_width);
+        game.snake.position[i] = malloc(sizeof(int) * game.field_width);
+        gameFieldSquare[i] = malloc(sizeof(GtkWidget*) * game.field_width);
+    }
+
     // app
     GtkApplication *app;
     gst_init(&argc, &argv);
@@ -496,5 +510,15 @@ int main(int argc, char **argv) {
 
     // quit application
     g_object_unref(app);
+
+    for (int i = 0; i < game.field_height; i++) {
+        free(game.snake.position[i]);
+        free(game.field[i]);
+        free(gameFieldSquare[i]);
+    }
+    free(game.snake.position);
+    free(game.field);
+    free(gameFieldSquare);
+
     return status;
 }
