@@ -8,8 +8,8 @@ csnake supports the following flags:
 | Flag             | Short flag | Description                                             | Expected input        |
 |------------------|------------|---------------------------------------------------------|-----------------------|
 | --apples         | -a         | Number of apples to place on the field                  | Positive integer      |
-| --refreshTimeout | -rt        | Set game tick interval in milliseconds (default is 200) | Positive integer      |
 | --help           | -h         | Show help message                                       |                       |
+| --refreshTimeout | -rt        | Set game tick interval in milliseconds (default is 200) | Positive integer      |
 | --size           | -s         | Set game field size                                     | Two positive integers |
 ## Development
 If GTK & gstreamer libraries are installed on your system, you may be able to build this software using:
