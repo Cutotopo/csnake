@@ -15,8 +15,16 @@ enum SnakeDirection {
     SNAKE_DIRECTION_LEFT
 };
 
+enum GameDebugMode {
+    DEBUG_MODE_NONE,
+    DEBUG_MODE_PRINT_SNAKE,
+    DEBUG_MODE_PRINT_FIELD
+};
+
 typedef struct Player {
     int **position;
+    int position_y;
+    int position_x;
     enum SnakeDirection direction; // valid values are 0: up, 1: right, 2: down, 3: left
     int maxValue;
     int isGrowing;
@@ -29,10 +37,12 @@ typedef struct Snake {
     int field_height;
     player snake;
     int isSnakePlaced;
-    int isApplePlaced;
+    int apples_placed;
+    int apples_target;
     int level;
     int gameFieldRefreshTimeout;
     int isGameOver;
+    enum GameDebugMode debug_mode;
 } snake;
 
 // bgm gstreamer pipeline and signal
@@ -55,7 +65,7 @@ static gboolean bgm_bus_callback(GstBus *bus, GstMessage *msg, gpointer data);
 
 // quit the application
 void quitApplication() {
-      gtk_window_close(GTK_WINDOW(window));
+    gtk_window_close(GTK_WINDOW(window));
 }
 
 // set window contents to game over
@@ -244,23 +254,46 @@ void emptyField() {
     }
 }
 
+void get_next_snake_coords(int* output, int* currentPosition, enum SnakeDirection direction) {
+    switch(direction) {
+        case SNAKE_DIRECTION_UP:
+            output[0] = currentPosition[0] - 1;
+            output[1] = currentPosition[1];
+            break;
+        case SNAKE_DIRECTION_RIGHT:
+            output[0] = currentPosition[0];
+            output[1] = currentPosition[1] + 1;
+            break;
+        case SNAKE_DIRECTION_DOWN:
+            output[0] = currentPosition[0] + 1;
+            output[1] = currentPosition[1];
+            break;
+        case SNAKE_DIRECTION_LEFT:
+            output[0] = currentPosition[0];
+            output[1] = currentPosition[1] - 1;
+            break;
+    }
+}
+
 // refreshes the game field
 gboolean refreshField(gpointer user_data) {
     // if the apple was not placed, it is now placed
-    if (!game.isApplePlaced) {
+    while (game.apples_placed != game.apples_target) {
         int appleX;
         int appleY;
         do {
             appleX = rand() % game.field_width;
             appleY = rand() % game.field_height;
-        } while (game.snake.position[appleY][appleX] > 0);
+        } while (game.snake.position[appleY][appleX] > 0 && game.field[appleY][appleX] != 1);
         game.field[appleY][appleX] = 1;
-        game.isApplePlaced = 1;
+        game.apples_placed += 1;
     }
 
     // if the player was not placed, it its now placed
     if (!game.isSnakePlaced) {
-        game.snake.position[game.field_height / 2][game.field_width / 2] = 1;
+        game.snake.position_y = game.field_height / 2;
+        game.snake.position_x = game.field_width / 2;
+        game.snake.position[game.snake.position_y][game.snake.position_x] = 1;
         game.snake.maxValue = 1;
         game.isSnakePlaced = 1;
         game.snake.direction = SNAKE_DIRECTION_RIGHT;
@@ -273,71 +306,69 @@ gboolean refreshField(gpointer user_data) {
     }
 
     if (game.isSnakePlaced) {
-        int snakeHeadCoordinates[2];
-        findValueCoordinatesInMatrix(game.snake.position, game.snake.maxValue, snakeHeadCoordinates);
         // check field boundaries
-        if (snakeHeadCoordinates[0] > 0 && game.snake.direction == SNAKE_DIRECTION_UP) {
-            if (game.field[snakeHeadCoordinates[0] - 1][snakeHeadCoordinates[1]] == 1) {
+        if (game.snake.position_y > 0 && game.snake.direction == SNAKE_DIRECTION_UP) {
+            if (game.field[game.snake.position_y - 1][game.snake.position_x] == 1) {
                 game.snake.isGrowing = 1;
             }
-            if (game.snake.position[snakeHeadCoordinates[0] - 1][snakeHeadCoordinates[1]] > 0) {
+            if (game.snake.position[game.snake.position_y - 1][game.snake.position_x] > 0) {
                 game.isGameOver = 1;
             }
         }
-        if (snakeHeadCoordinates[1] > 0 && game.snake.direction == SNAKE_DIRECTION_RIGHT) {
-            if (game.field[snakeHeadCoordinates[0]][snakeHeadCoordinates[1] + 1] == 1) {
+        if (game.snake.position_x > 0 && game.snake.direction == SNAKE_DIRECTION_RIGHT) {
+            if (game.field[game.snake.position_y][game.snake.position_x + 1] == 1) {
                 game.snake.isGrowing = 1;
             }
-            if (game.snake.position[snakeHeadCoordinates[0]][snakeHeadCoordinates[1] + 1] > 0) {
+            if (game.snake.position[game.snake.position_y][game.snake.position_x + 1] > 0) {
                 game.isGameOver = 1;
             }
         }
-        if (snakeHeadCoordinates[0] < game.field_height - 1 && game.snake.direction == SNAKE_DIRECTION_DOWN) {
-            if (game.field[snakeHeadCoordinates[0] + 1][snakeHeadCoordinates[1]] == 1) {
+        if (game.snake.position_y < game.field_height - 1 && game.snake.direction == SNAKE_DIRECTION_DOWN) {
+            if (game.field[game.snake.position_y + 1][game.snake.position_x] == 1) {
                 game.snake.isGrowing = 1;
             }
-            if (game.snake.position[snakeHeadCoordinates[0] + 1][snakeHeadCoordinates[1]] > 0) {
+            if (game.snake.position[game.snake.position_y + 1][game.snake.position_x] > 0) {
                 game.isGameOver = 1;
             }
         }
-        if (snakeHeadCoordinates[1] < game.field_width - 1 && game.snake.direction == SNAKE_DIRECTION_LEFT) {
-            if (game.field[snakeHeadCoordinates[0]][snakeHeadCoordinates[1] - 1] == 1) {
+        if (game.snake.position_x < game.field_width - 1 && game.snake.direction == SNAKE_DIRECTION_LEFT) {
+            if (game.field[game.snake.position_y][game.snake.position_x - 1] == 1) {
                 game.snake.isGrowing = 1;
             }
-            if (game.snake.position[snakeHeadCoordinates[0]][snakeHeadCoordinates[1] - 1] > 0) {
+            if (game.snake.position[game.snake.position_y][game.snake.position_x - 1] > 0) {
                 game.isGameOver = 1;
             }
         }
         if (!game.snake.isGrowing) {
             switch(game.snake.direction) {
                 case SNAKE_DIRECTION_UP:
-                    if (snakeHeadCoordinates[0] > 0) {
-                        game.snake.position[snakeHeadCoordinates[0] - 1][snakeHeadCoordinates[1]] = game.snake.position[snakeHeadCoordinates[0]][snakeHeadCoordinates[1]];
-                        snakeHeadCoordinates[0]--;
+                    if (game.snake.position_y > 0) {
+                        game.snake.position[game.snake.position_y - 1][game.snake.position_x] = game.snake.position[game.snake.position_y][game.snake.position_x];
+                        game.snake.position_y--;
                     } else {
                         game.isGameOver = 1;
                     }
                     break;
                 case SNAKE_DIRECTION_RIGHT:
-                    if (snakeHeadCoordinates[1] < game.field_width - 1) {
-                        game.snake.position[snakeHeadCoordinates[0]][snakeHeadCoordinates[1] + 1] = game.snake.position[snakeHeadCoordinates[0]][snakeHeadCoordinates[1]];
-                        snakeHeadCoordinates[1]++;
+                    if (game.snake.position_x < game.field_width - 1) {
+                        game.snake.position[game.snake.position_y][game.snake.position_x + 1] = game.snake.position[game.snake.position_y][game.snake.position_x];
+                        game.snake.position_x++;
                     } else {
                         game.isGameOver = 1;
                     }
                     break;
                 case SNAKE_DIRECTION_DOWN:
-                    if (snakeHeadCoordinates[0] < game.field_height - 1) {
-                        game.snake.position[snakeHeadCoordinates[0] + 1][snakeHeadCoordinates[1]] = game.snake.position[snakeHeadCoordinates[0]][snakeHeadCoordinates[1]];
-                        snakeHeadCoordinates[0]++;
+                    if (game.snake.position_y < game.field_height - 1) {
+                        game.snake.position[game.snake.position_y + 1][game.snake.position_x] = game.snake.position[game.snake.position_y][game.snake.position_x];
+                        game.snake.position_y++;
                     } else {
                         game.isGameOver = 1;
                     }
                     break;
                 case SNAKE_DIRECTION_LEFT:
-                    if (snakeHeadCoordinates[1] > 0) {
-                        game.snake.position[snakeHeadCoordinates[0]][snakeHeadCoordinates[1] - 1] = game.snake.position[snakeHeadCoordinates[0]][snakeHeadCoordinates[1]];
-                        snakeHeadCoordinates[1]--;
+                    if (game.snake.position_x > 0) {
+                        game.snake.position[game.snake.position_y][game.snake.position_x - 1] = game.snake.position[game.snake.position_y][game.snake.position_x];
+                        game.snake.position_x--;
                     } else {
                         game.isGameOver = 1;
                     }
@@ -346,19 +377,22 @@ gboolean refreshField(gpointer user_data) {
         }
         for (int i = 0; i < game.field_height; i++) {
             for (int j = 0; j < game.field_width; j++) {
-                if (((i != snakeHeadCoordinates[0] || j != snakeHeadCoordinates[1])) && (game.snake.position[i][j] > 0) && (!game.snake.isGrowing)) {
+                if (((i != game.snake.position_y || j != game.snake.position_x)) && (game.snake.position[i][j] > 0) && (!game.snake.isGrowing)) {
                     game.snake.position[i][j]--;
                 }
             }
         }
         if (game.snake.isGrowing) {
-            int appleCoordinates[2];
             game.score++;
-            findValueCoordinatesInMatrix(game.field, 1, appleCoordinates);
+            int appleCoordinates[2];
+            int snakeHead[] = { game.snake.position_y, game.snake.position_x };
+            get_next_snake_coords(appleCoordinates, snakeHead, game.snake.direction);
             game.snake.maxValue++;
             game.snake.position[appleCoordinates[0]][appleCoordinates[1]] = game.snake.maxValue;
+            game.snake.position_y = appleCoordinates[0];
+            game.snake.position_x = appleCoordinates[1];
             game.field[appleCoordinates[0]][appleCoordinates[1]] = 0;
-            game.isApplePlaced = 0;
+            game.apples_placed -= 1;
             game.snake.isGrowing = 0;
         }
     }
@@ -367,6 +401,16 @@ gboolean refreshField(gpointer user_data) {
     updateLabels();
     for (int i = 0; i < game.field_height; i++) {
         for (int j = 0; j < game.field_width; j++) {
+            if (game.debug_mode == DEBUG_MODE_PRINT_SNAKE) {
+                char st[(game.snake.maxValue / 10) + 1];
+                sprintf(st, "%d", game.snake.position[i][j]);
+                gtk_label_set_text((GtkLabel*) gameFieldSquare[i][j], st);
+            } else if (game.debug_mode == DEBUG_MODE_PRINT_FIELD) {
+                char st[3];
+                sprintf(st, "%d", game.field[i][j]);
+                gtk_label_set_text((GtkLabel*) gameFieldSquare[i][j], st);
+            }
+
             switch(game.field[i][j]) {
                 case 0:
                     gtk_widget_remove_css_class(gameFieldSquare[i][j], "apple");
@@ -469,14 +513,16 @@ static void activate(GtkApplication* app, gpointer user_data) {
 
 int main(int argc, char **argv) {
     srand(time(NULL));
-    game.gameFieldRefreshTimeout = 200;
+    game.gameFieldRefreshTimeout = 75;
     game.field_width = 25;
     game.field_height = 25;
+    game.apples_target = 5;
+    game.debug_mode = DEBUG_MODE_NONE;
 
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] == '-') {
             if ((strcmp(argv[i], "--help") == 0) || (strcmp(argv[i], "-h") == 0)) {
-                printf("csnake - https://github.com/Cutotopo/csnake\n===========================================\nOptions:\n  --refreshTimeout / -rt | Set game tick interval in milliseconds (default is 200)\n  --help / -h            | Show this help message\n");
+                printf("csnake - https://github.com/Cutotopo/csnake\n===========================================\nOptions:\n  --apples / -a          | Set number of apples to place on the field (default is 5)\n  --debug / -d           | Enable debug flag (one of `print_snake`, `print_field`)\n  --refreshTimeout / -rt | Set game tick interval in milliseconds (default is 75)\n  --size / -s            | Set field size (default is 25x25)\n  --help / -h            | Show this help message\n");
                 exit(0);
             }
 
@@ -486,6 +532,25 @@ int main(int argc, char **argv) {
                     exit(1);
                 }
                 game.gameFieldRefreshTimeout = atoi(argv[i + 1]);
+            }
+
+            if ((strcmp(argv[i], "--debug") == 0) || (strcmp(argv[i], "-d") == 0)) {
+                if ((strcmp(argv[i + 1], "print_snake") == 0)) {
+                    game.debug_mode = DEBUG_MODE_PRINT_SNAKE;
+                } else if ((strcmp(argv[i + 1], "print_field") == 0)) {
+                    game.debug_mode = DEBUG_MODE_PRINT_FIELD;
+                } else {
+                    printf("Invalid debug mode.\n");
+                    exit(1);
+                }
+            }
+
+            if ((strcmp(argv[i], "--apples") == 0) || (strcmp(argv[i], "-a") == 0)) {
+                if (atoi(argv[i + 1]) == 0) {
+                    printf("Apples target count should be a positive integer.\n");
+                    exit(1);
+                }
+                game.apples_target = atoi(argv[i + 1]);
             }
 
             if ((strcmp(argv[i], "--size") == 0) || (strcmp(argv[i], "-s") == 0)) {
