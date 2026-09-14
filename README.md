@@ -1,6 +1,8 @@
 # csnake
 Simple Snake game written in C using GTK and gstreamer.
 
+The game can be controlled either using WASD or the arrow keys, and paused/resumed with either Escape or P.
+
 ## Flags
 csnake supports the following flags:
 | Flag             | Short flag | Description                                             | Expected input        |
@@ -9,7 +11,6 @@ csnake supports the following flags:
 | --refreshTimeout | -rt        | Set game tick interval in milliseconds (default is 200) | Positive integer      |
 | --help           | -h         | Show help message                                       |                       |
 | --size           | -s         | Set game field size                                     | Two positive integers |
-
 ## Development
 If GTK & gstreamer libraries are installed on your system, you may be able to build this software using:
 ```

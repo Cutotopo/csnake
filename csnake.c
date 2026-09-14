@@ -42,6 +42,7 @@ typedef struct Snake {
     int level;
     int gameFieldRefreshTimeout;
     int isGameOver;
+    int is_paused;
     enum GameDebugMode debug_mode;
 } snake;
 
@@ -197,7 +198,7 @@ void checkLevelScore() {
 // update label content
 void updateLabels() {
     char scoreLabel[100];
-    sprintf(scoreLabel, "Score: %d - Level: %d - Direction: %s", game.score, game.level, generateDirectionLabel(game.snake.direction));
+    sprintf(scoreLabel, "Score: %d - Level: %d - Direction: %s%s", game.score, game.level, generateDirectionLabel(game.snake.direction), game.is_paused ? " (paused)" : "");
     gtk_label_set_label(GTK_LABEL(gameStateLabel), scoreLabel);
 }
 
@@ -240,6 +241,20 @@ gboolean key_pressed(GtkEventControllerKey* self, guint keyval, guint keycode, G
                 game.snake.direction = SNAKE_DIRECTION_RIGHT;
             }
             break;
+        case GDK_KEY_p:
+        case GDK_KEY_Escape:
+            if (game.is_paused == 1) {
+                game.is_paused = 0;
+                if (bgm_pipeline) {
+                    gst_element_set_state(bgm_pipeline, GST_STATE_PLAYING);
+                }
+            } else {
+                game.is_paused = 1;
+                if (bgm_pipeline) {
+                    gst_element_set_state(bgm_pipeline, GST_STATE_PAUSED);
+                }
+            }
+            break;
     }
     return TRUE;
 }
@@ -277,6 +292,10 @@ void get_next_snake_coords(int* output, int* currentPosition, enum SnakeDirectio
 
 // refreshes the game field
 gboolean refreshField(gpointer user_data) {
+    if (game.is_paused) {
+        updateLabels();
+        return TRUE;
+    }
     // if the apple was not placed, it is now placed
     while (game.apples_placed != game.apples_target) {
         int appleX;
