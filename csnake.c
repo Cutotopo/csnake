@@ -51,6 +51,7 @@ typedef struct Snake {
     int isGameOver;
     int is_paused;
     uint8_t debug_mode;
+    int square_size;
 } snake;
 
 void set_debug_print_mode(struct Snake* game_instance, enum GameDebugMode mode) {
@@ -515,7 +516,7 @@ static void activate(GtkApplication* app, gpointer user_data) {
         gtk_box_append(GTK_BOX(gameFieldBox), gameFieldChildrenBoxes[i]);
         for (int j = 0; j < game.field_width; j++) {
             gameFieldSquare[i][j] = gtk_label_new("");
-            gtk_widget_set_size_request(gameFieldSquare[i][j], 25, 25);
+            gtk_widget_set_size_request(gameFieldSquare[i][j], game.square_size, game.square_size);
             gtk_widget_add_css_class(gameFieldSquare[i][j], "gameFieldSquare");
             gtk_widget_add_css_class(gameFieldSquare[i][j], (i + j) % 2 == 0 ? "gameFieldSquare-even" : "gameFieldSquare-odd");
             gtk_box_append(GTK_BOX(gameFieldChildrenBoxes[i]), gameFieldSquare[i][j]);
@@ -542,11 +543,22 @@ int main(int argc, char **argv) {
     game.field_height = 25;
     game.apples_target = 5;
     game.debug_mode = 0;
+    game.square_size = 25;
 
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] == '-') {
             if ((strcmp(argv[i], "--help") == 0) || (strcmp(argv[i], "-h") == 0)) {
-                printf("csnake - https://github.com/Cutotopo/csnake\n===========================================\nOptions:\n  --apples / -a          | Set number of apples to place on the field (default is 5)\n  --debug / -d           | Enable debug flag (one of `print_snake`, `print_field`)\n  --refreshTimeout / -rt | Set game tick interval in milliseconds (default is 75)\n  --size / -s            | Set field size (default is 25x25)\n  --help / -h            | Show this help message\n");
+                printf(
+                    "csnake 0.3 - https://github.com/Cutotopo/csnake\n"
+                    "================================================\n"
+                    "Options:\n"
+                    "  --apples / -a          | Set number of apples to place on the field (default is 5)\n"
+                    "  --debug / -d           | Enable debug flag (see documentation)\n"
+                    "  --help / -h            | Show this help message and exit\n"
+                    "  --refreshTimeout / -rt | Set game tick interval in milliseconds (default is 75)\n"
+                    "  --size / -s            | Set field size (default is 25x25)\n"
+                    "  --squareSize / -sz     | Set displayed square size (default, and minimum, is 25)\n"
+                );
                 exit(0);
             }
 
@@ -556,6 +568,18 @@ int main(int argc, char **argv) {
                     exit(1);
                 }
                 game.gameFieldRefreshTimeout = atoi(argv[i + 1]);
+            }
+
+            if ((strcmp(argv[i], "--squareSize") == 0) || (strcmp(argv[i], "-sz") == 0)) {
+                if (atoi(argv[i + 1]) == 0) {
+                    printf("Square size value should be a positive integer.\n");
+                    exit(1);
+                }
+                if (atoi(argv[i + 1]) < 25) {
+                    printf("Square size value should be greater than 25.\n");
+                    exit(1);
+                }
+                game.square_size = atoi(argv[i + 1]);
             }
 
             if ((strcmp(argv[i], "--debug") == 0) || (strcmp(argv[i], "-d") == 0)) {
