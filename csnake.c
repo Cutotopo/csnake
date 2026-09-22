@@ -16,9 +16,15 @@ enum SnakeDirection {
 };
 
 enum GameDebugMode {
-    DEBUG_MODE_NONE,
-    DEBUG_MODE_PRINT_SNAKE,
-    DEBUG_MODE_PRINT_FIELD
+    DEBUG_MODE_NOCLIP = (1 << 0),
+    DEBUG_MODE_LOG_MOVEMENT = (1 << 1),
+    DEBUG_MODE_LOG_RNG = (1 << 2),
+
+    // Window printing mask
+    DEBUG_MODE_PRINT_MASK = (0x3 << 3),
+    DEBUG_MODE_PRINT_NONE = (0x0 << 3),
+    DEBUG_MODE_PRINT_SNAKE = (0x1 << 3),
+    DEBUG_MODE_PRINT_FIELD = (0x2 << 3),
 };
 
 typedef struct Player {
@@ -43,8 +49,13 @@ typedef struct Snake {
     int gameFieldRefreshTimeout;
     int isGameOver;
     int is_paused;
-    enum GameDebugMode debug_mode;
+    uint8_t debug_mode;
 } snake;
+
+void set_debug_print_mode(struct Snake* game_instance, enum GameDebugMode mode) {
+    game_instance->debug_mode &= ~DEBUG_MODE_PRINT_MASK;
+    game_instance->debug_mode |= mode;
+}
 
 // bgm gstreamer pipeline and signal
 static GstElement *bgm_pipeline = NULL;
@@ -202,18 +213,6 @@ void updateLabels() {
     gtk_label_set_label(GTK_LABEL(gameStateLabel), scoreLabel);
 }
 
-// find value in matrix
-void findValueCoordinatesInMatrix(int **matrix, int value, int* coordinates) {
-    for (int i = 0; i < game.field_height; i++) {
-        for (int j = 0; j < game.field_width; j++) {
-            if (matrix[i][j] == value) {
-                coordinates[0] = i;
-                coordinates[1] = j;
-            }
-        }
-    }
-}
-
 // handle keypressed event
 gboolean key_pressed(GtkEventControllerKey* self, guint keyval, guint keycode, GdkModifierType state, gpointer user_data) {
     switch (keyval) {
@@ -269,25 +268,75 @@ void emptyField() {
     }
 }
 
-void get_next_snake_coords(int* output, int* currentPosition, enum SnakeDirection direction) {
+bool field_test_bounds(struct Snake* game_instance, int x, int y) {
+    if (x >= 0 && x < game_instance->field_width && y >= 0 && y < game_instance->field_height) {
+        return true;
+    }
+    return false;
+}
+
+int get_safe_field_value(struct Snake* game_instance, int x, int y) {
+    if (field_test_bounds(game_instance, x, y)) {
+        return game_instance->field[y][x];
+    }
+    return -1;
+}
+
+int get_safe_snake_value(struct Snake* game_instance, int x, int y) {
+    if (field_test_bounds(game_instance, x, y)) {
+        return game_instance->snake.position[y][x];
+    }
+    return -1;
+}
+
+bool set_safe_snake_value(struct Snake* game_instance, int x, int y, int value) {
+    if (field_test_bounds(game_instance, x, y)) {
+        game_instance->snake.position[y][x] = value;
+        return true;
+    }
+    return false;
+}
+
+void get_next_snake_coords(int* output, struct Snake* game_instance, enum SnakeDirection direction) {
     switch(direction) {
         case SNAKE_DIRECTION_UP:
-            output[0] = currentPosition[0] - 1;
-            output[1] = currentPosition[1];
+            output[0] = game_instance->snake.position_x;
+            output[1] = game_instance->snake.position_y - 1;
             break;
         case SNAKE_DIRECTION_RIGHT:
-            output[0] = currentPosition[0];
-            output[1] = currentPosition[1] + 1;
+            output[0] = game_instance->snake.position_x + 1;
+            output[1] = game_instance->snake.position_y;
             break;
         case SNAKE_DIRECTION_DOWN:
-            output[0] = currentPosition[0] + 1;
-            output[1] = currentPosition[1];
+            output[0] = game_instance->snake.position_x;
+            output[1] = game_instance->snake.position_y + 1;
             break;
         case SNAKE_DIRECTION_LEFT:
-            output[0] = currentPosition[0];
-            output[1] = currentPosition[1] - 1;
+            output[0] = game_instance->snake.position_x - 1;
+            output[1] = game_instance->snake.position_y;
             break;
     }
+}
+
+bool do_snake_move(struct Snake* game_instance) {
+    int nextCoordinates[2];
+    get_next_snake_coords(nextCoordinates, game_instance, game_instance->snake.direction);
+
+    int cval = get_safe_snake_value(game_instance, game_instance->snake.position_x, game_instance->snake.position_y);
+    bool res = set_safe_snake_value(game_instance, nextCoordinates[0], nextCoordinates[1], cval);
+
+    if (!res) {
+        return false;
+    }
+
+    game_instance->snake.position_x = nextCoordinates[0];
+    game_instance->snake.position_y = nextCoordinates[1];
+
+    if (game_instance->debug_mode & DEBUG_MODE_LOG_MOVEMENT) {
+        printf("[d] Moving from (%d,%d) to (%d,%d).\n", game_instance->snake.position_x, game_instance->snake.position_y, nextCoordinates[0], nextCoordinates[1]);
+    }
+
+    return true;
 }
 
 // refreshes the game field
@@ -305,6 +354,9 @@ gboolean refreshField(gpointer user_data) {
             appleY = rand() % game.field_height;
         } while (game.snake.position[appleY][appleX] > 0 && game.field[appleY][appleX] != 1);
         game.field[appleY][appleX] = 1;
+        if (game.debug_mode & DEBUG_MODE_LOG_RNG) {
+            printf("[d] Placed apple at (%d,%d).\n", appleY, appleX);
+        }
         game.apples_placed += 1;
     }
 
@@ -325,74 +377,26 @@ gboolean refreshField(gpointer user_data) {
     }
 
     if (game.isSnakePlaced) {
-        // check field boundaries
-        if (game.snake.position_y > 0 && game.snake.direction == SNAKE_DIRECTION_UP) {
-            if (game.field[game.snake.position_y - 1][game.snake.position_x] == 1) {
-                game.snake.isGrowing = 1;
-            }
-            if (game.snake.position[game.snake.position_y - 1][game.snake.position_x] > 0) {
-                game.isGameOver = 1;
-            }
+        int nextCoordinates[2];
+        get_next_snake_coords(nextCoordinates, &game, game.snake.direction);
+
+        // check whether we should grow
+        int field_value = get_safe_field_value(&game, nextCoordinates[0], nextCoordinates[1]);
+        if (field_value == 1) {
+            game.snake.isGrowing = 1;
         }
-        if (game.snake.position_x > 0 && game.snake.direction == SNAKE_DIRECTION_RIGHT) {
-            if (game.field[game.snake.position_y][game.snake.position_x + 1] == 1) {
-                game.snake.isGrowing = 1;
-            }
-            if (game.snake.position[game.snake.position_y][game.snake.position_x + 1] > 0) {
-                game.isGameOver = 1;
-            }
+
+        // check whether we crossed ourselves
+        int snake_value = get_safe_snake_value(&game, nextCoordinates[0], nextCoordinates[1]);
+        if (snake_value > 0 && !(game.debug_mode & DEBUG_MODE_NOCLIP)) {
+            game.isGameOver = 1;
         }
-        if (game.snake.position_y < game.field_height - 1 && game.snake.direction == SNAKE_DIRECTION_DOWN) {
-            if (game.field[game.snake.position_y + 1][game.snake.position_x] == 1) {
-                game.snake.isGrowing = 1;
-            }
-            if (game.snake.position[game.snake.position_y + 1][game.snake.position_x] > 0) {
-                game.isGameOver = 1;
-            }
-        }
-        if (game.snake.position_x < game.field_width - 1 && game.snake.direction == SNAKE_DIRECTION_LEFT) {
-            if (game.field[game.snake.position_y][game.snake.position_x - 1] == 1) {
-                game.snake.isGrowing = 1;
-            }
-            if (game.snake.position[game.snake.position_y][game.snake.position_x - 1] > 0) {
-                game.isGameOver = 1;
-            }
-        }
+
         if (!game.snake.isGrowing) {
-            switch(game.snake.direction) {
-                case SNAKE_DIRECTION_UP:
-                    if (game.snake.position_y > 0) {
-                        game.snake.position[game.snake.position_y - 1][game.snake.position_x] = game.snake.position[game.snake.position_y][game.snake.position_x];
-                        game.snake.position_y--;
-                    } else {
-                        game.isGameOver = 1;
-                    }
-                    break;
-                case SNAKE_DIRECTION_RIGHT:
-                    if (game.snake.position_x < game.field_width - 1) {
-                        game.snake.position[game.snake.position_y][game.snake.position_x + 1] = game.snake.position[game.snake.position_y][game.snake.position_x];
-                        game.snake.position_x++;
-                    } else {
-                        game.isGameOver = 1;
-                    }
-                    break;
-                case SNAKE_DIRECTION_DOWN:
-                    if (game.snake.position_y < game.field_height - 1) {
-                        game.snake.position[game.snake.position_y + 1][game.snake.position_x] = game.snake.position[game.snake.position_y][game.snake.position_x];
-                        game.snake.position_y++;
-                    } else {
-                        game.isGameOver = 1;
-                    }
-                    break;
-                case SNAKE_DIRECTION_LEFT:
-                    if (game.snake.position_x > 0) {
-                        game.snake.position[game.snake.position_y][game.snake.position_x - 1] = game.snake.position[game.snake.position_y][game.snake.position_x];
-                        game.snake.position_x--;
-                    } else {
-                        game.isGameOver = 1;
-                    }
-                    break;
-                }
+            bool res = do_snake_move(&game);
+            if (!res) {
+                game.isGameOver = 1;
+            }
         }
         for (int i = 0; i < game.field_height; i++) {
             for (int j = 0; j < game.field_width; j++) {
@@ -404,13 +408,12 @@ gboolean refreshField(gpointer user_data) {
         if (game.snake.isGrowing) {
             game.score++;
             int appleCoordinates[2];
-            int snakeHead[] = { game.snake.position_y, game.snake.position_x };
-            get_next_snake_coords(appleCoordinates, snakeHead, game.snake.direction);
+            get_next_snake_coords(appleCoordinates, &game, game.snake.direction);
             game.snake.maxValue++;
-            game.snake.position[appleCoordinates[0]][appleCoordinates[1]] = game.snake.maxValue;
-            game.snake.position_y = appleCoordinates[0];
-            game.snake.position_x = appleCoordinates[1];
-            game.field[appleCoordinates[0]][appleCoordinates[1]] = 0;
+            game.snake.position[appleCoordinates[1]][appleCoordinates[0]] = game.snake.maxValue;
+            game.snake.position_x = appleCoordinates[0];
+            game.snake.position_y = appleCoordinates[1];
+            game.field[appleCoordinates[1]][appleCoordinates[0]] = 0;
             game.apples_placed -= 1;
             game.snake.isGrowing = 0;
         }
@@ -420,11 +423,11 @@ gboolean refreshField(gpointer user_data) {
     updateLabels();
     for (int i = 0; i < game.field_height; i++) {
         for (int j = 0; j < game.field_width; j++) {
-            if (game.debug_mode == DEBUG_MODE_PRINT_SNAKE) {
+            if ((game.debug_mode & DEBUG_MODE_PRINT_MASK) == DEBUG_MODE_PRINT_SNAKE) {
                 char st[(game.snake.maxValue / 10) + 1];
                 sprintf(st, "%d", game.snake.position[i][j]);
                 gtk_label_set_text((GtkLabel*) gameFieldSquare[i][j], st);
-            } else if (game.debug_mode == DEBUG_MODE_PRINT_FIELD) {
+            } else if ((game.debug_mode & DEBUG_MODE_PRINT_MASK) == DEBUG_MODE_PRINT_FIELD) {
                 char st[3];
                 sprintf(st, "%d", game.field[i][j]);
                 gtk_label_set_text((GtkLabel*) gameFieldSquare[i][j], st);
@@ -536,7 +539,7 @@ int main(int argc, char **argv) {
     game.field_width = 25;
     game.field_height = 25;
     game.apples_target = 5;
-    game.debug_mode = DEBUG_MODE_NONE;
+    game.debug_mode = 0;
 
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] == '-') {
@@ -555,9 +558,15 @@ int main(int argc, char **argv) {
 
             if ((strcmp(argv[i], "--debug") == 0) || (strcmp(argv[i], "-d") == 0)) {
                 if ((strcmp(argv[i + 1], "print_snake") == 0)) {
-                    game.debug_mode = DEBUG_MODE_PRINT_SNAKE;
+                    set_debug_print_mode(&game, DEBUG_MODE_PRINT_SNAKE);
                 } else if ((strcmp(argv[i + 1], "print_field") == 0)) {
-                    game.debug_mode = DEBUG_MODE_PRINT_FIELD;
+                    set_debug_print_mode(&game, DEBUG_MODE_PRINT_FIELD);
+                } else if ((strcmp(argv[i + 1], "log_movement") == 0)) {
+                    game.debug_mode |= DEBUG_MODE_LOG_MOVEMENT;
+                } else if ((strcmp(argv[i + 1], "noclip") == 0)) {
+                    game.debug_mode |= DEBUG_MODE_NOCLIP;
+                } else if ((strcmp(argv[i + 1], "log_rng") == 0)) {
+                    game.debug_mode |= DEBUG_MODE_LOG_RNG;
                 } else {
                     printf("Invalid debug mode.\n");
                     exit(1);
