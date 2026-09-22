@@ -31,7 +31,8 @@ typedef struct Player {
     int **position;
     int position_y;
     int position_x;
-    enum SnakeDirection direction; // valid values are 0: up, 1: right, 2: down, 3: left
+    enum SnakeDirection direction;
+    enum SnakeDirection last_tick_direction;
     int maxValue;
     int isGrowing;
 } player;
@@ -218,25 +219,25 @@ gboolean key_pressed(GtkEventControllerKey* self, guint keyval, guint keycode, G
     switch (keyval) {
         case GDK_KEY_w:
         case GDK_KEY_Up:
-            if (game.snake.direction != SNAKE_DIRECTION_DOWN) {
+            if (game.snake.last_tick_direction != SNAKE_DIRECTION_DOWN) {
                 game.snake.direction = SNAKE_DIRECTION_UP;
             }
             break;
         case GDK_KEY_s:
         case GDK_KEY_Down:
-            if (game.snake.direction != SNAKE_DIRECTION_UP) {
+            if (game.snake.last_tick_direction != SNAKE_DIRECTION_UP) {
                 game.snake.direction = SNAKE_DIRECTION_DOWN;
             }
             break;
         case GDK_KEY_a:
         case GDK_KEY_Left:
-            if (game.snake.direction != SNAKE_DIRECTION_RIGHT) {
+            if (game.snake.last_tick_direction != SNAKE_DIRECTION_RIGHT) {
                 game.snake.direction = SNAKE_DIRECTION_LEFT;
             }
             break;
         case GDK_KEY_d:
         case GDK_KEY_Right:
-            if (game.snake.direction != SNAKE_DIRECTION_LEFT) {
+            if (game.snake.last_tick_direction != SNAKE_DIRECTION_LEFT) {
                 game.snake.direction = SNAKE_DIRECTION_RIGHT;
             }
             break;
@@ -331,6 +332,7 @@ bool do_snake_move(struct Snake* game_instance) {
 
     game_instance->snake.position_x = nextCoordinates[0];
     game_instance->snake.position_y = nextCoordinates[1];
+    game_instance->snake.last_tick_direction = game_instance->snake.direction;
 
     if (game_instance->debug_mode & DEBUG_MODE_LOG_MOVEMENT) {
         printf("[d] Moving from (%d,%d) to (%d,%d).\n", game_instance->snake.position_x, game_instance->snake.position_y, nextCoordinates[0], nextCoordinates[1]);
